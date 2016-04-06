@@ -2,7 +2,8 @@
 Very small (~140 lines of ruby) chess engine
 
 
-At the moment this is about all it does..
+
+At the moment it can only play against itself
 
 ```shell
 load 'search.rb'
