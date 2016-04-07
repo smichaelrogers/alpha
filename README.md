@@ -1,9 +1,8 @@
 # alpha
-Very small (~140 lines of ruby) chess engine
+Very small (~150 lines of ruby) chess engine
 
 
-
-At the moment it can only play against itself
+At the moment it can only play against itself. for a little bit
 
 ```shell
 load 'search.rb'

@@ -1,49 +1,156 @@
-require_relative 'search/constants'
-require_relative 'search/main'
+require_relative 'constants'
+require_relative 'runner'
 
-class Search
-  class << self    
-    def autoplay
-      s = first_position
-      loop do
-        s.find_move
-        puts [
-          ("_" * 32),
-          s.render_board,
-          "#{UTF8[s.mx^1][s.best[:move].piece]} #{SQ_ID[s.best[:move].from]}->#{SQ_ID[s.best[:move].to]} (#{s.nodes} nodes @ #{(s.nodes / s.clock).round(2)} nps)",
-        ].join("\n\n")
-        colors = s.colors
-        squares = s.squares
-        mx = s.mx
-        s = Search.new(squares, colors, mx)
-      end
+module Alpha
+  class Search
+    attr_reader :squares, :colors, :mx, :nodes, :clock, :best
+    
+    def initialize(squares, colors, mx)
+      @squares = squares
+      @colors  = colors
+      @mx, @mn = mx, mx ^ 1 
+      @kings = SQ.select { |sq| @squares[sq] == K }.sort_by { |sq| @colors[sq] }
+      @nodes = Array.new(MAXPLY) { 0 }
+      @history = Array.new(16) { Array.new(6) { Array.new(120) { 0 } } }
+      @ply = 0
     end
     
-    def first_position
-      from_fen(INITIAL_FEN)
-    end
-    
-    def from_fen(fen)
-      squares = Array.new(120) { -1 }
-      colors  = Array.new(120) { -1 }
-      mx = fen.split[1] == 'w' ? 0 : 1
+    def find_move(duration = 8.0)
+      roots = []
+      generate_moves { |m| roots << { move: m.dup, score: -INF } }
+      start_time = Time.now
+      timed_out = false
       
-      fen.split[0].split('/').map do |row|
-        row.chars.map { |sq| ('1'..'8').cover?(sq) ? ['6'] * sq.to_i : sq }
-      end.flatten.each_with_index do |sq, i|
-        squares[SQ[i]] = %w(p n b r q k 6).index(sq.downcase)
-        colors[SQ[i]] = sq == '6' ? EMPTY : sq == sq.downcase ? BLACK : WHITE
+      4.upto(MAXPLY) do |i|
+        roots.sort_by! { |m| -m[:score] }.each do |m|
+          next unless make(m[:move])
+          
+          score = -alphabeta(-INF, INF, i)
+          unmake(m[:move])
+          m[:score] = score
+          timed_out = Time.now > start_time + duration
+          break if timed_out
+        end
+        break if timed_out
       end
-
-      new(squares, colors, mx)
+      @clock = Time.now - start_time
+      @best = roots.first
+      make(@best[:move])
     end
-  end
-  
-  def render_board
-    8.times.map { |i|
-      SQ[(i*8), 8].map { |sq|
-        @squares[sq] == EMPTY ? '_' : UTF8[@colors[sq]][@squares[sq]]
-      }.join(' ')
-    }.join("\n")
+    
+    def alphabeta(alpha, beta, depth)
+      return evaluate if depth == 0
+      
+      @nodes[@ply] += 1
+      generate_moves do |m|
+        next unless make(m)
+        score = -alphabeta(-beta, -alpha, depth - 1)
+        unmake(m)
+        
+        if score > alpha
+          @history[@ply][m.piece][m.to] += depth
+          return beta if score >= beta
+          alpha = score
+        end
+      end
+      alpha
+    end
+    
+    def generate_moves
+      quiet = []
+      
+      SQ.select { |sq| @colors[sq] == @mx }.each do |from|
+        piece = @squares[from]
+        
+        if piece == P
+          to = from + DIR[@mx]
+          yield(Move.new(from, to + 1, P, @squares[to + 1]).freeze) if @colors[to + 1] == @mn
+          yield(Move.new(from, to - 1, P, @squares[to - 1]).freeze) if @colors[to - 1] == @mn
+          next unless @colors[to] == EMPTY
+          quiet << Move.new(from, to, P, EMPTY).freeze
+          quiet << Move.new(from, to + DIR[@mx], P, EMPTY).freeze if 
+            @squares[to + DIR[@mx]] == EMPTY && !(40..80).cover?(from)
+            
+        else STEPS[piece].each do |step|
+            to = from + step
+            while @colors[to] == EMPTY
+              quiet << Move.new(from, to, piece, EMPTY).freeze
+              break unless SLIDING[piece]
+              to += step
+            end
+            yield(Move.new(from, to, piece, @squares[to]).freeze) if @colors[to] == @mn
+            break
+          end
+        end
+      end
+      quiet.sort_by! { |m| -@history[@ply][m.piece][m.to] }.each { |m| yield(m) }
+    end
+
+    def make(m)
+      @on_move[@ply] = m
+      @squares[m.from], @colors[m.from] = EMPTY, EMPTY
+      @squares[m.to], @colors[m.to] = m.piece, @mx
+      @ply += 1
+      @kings[@mx] == m.to if m.piece == K
+      if in_check?
+        swap!
+        unmake(m)
+        return false
+      end
+      swap!
+      true
+    end
+    
+    def unmake(m)
+      swap!
+      @ply -= 1
+      @squares[m.from], @colors[m.from] = m.piece, @mx
+      @squares[m.to], @colors[m.to] = m.target, m.target == EMPTY ? EMPTY : @mn
+      @kings[@mx] = m.from if m.piece == K
+    end    
+    
+    def in_check?
+      k = @kings[@mx]
+      8.times do |i|
+        sq = k + STEP[i]
+        return true if @squares[sq] == N && @colors[sq] == @mn
+        sq = k + OCTL[i]
+        sq += OCTL[i] while @colors[sq] == EMPTY
+        next unless @colors[sq] == @mn
+        case @squares[sq]
+        when Q then return true
+        when B then return true if i < 4
+        when R then return true if i > 3
+        when P then return true if k + DIR[@mx] - 1 == sq || k + DIR[@mx] + 1 == sq
+        when K then return true if sq - (k + OCTL[i]) == 0
+        end
+      end
+      false
+    end
+    
+    def swap!; @mx, @mn = @mn, @mx end
+    
+    def all_pieces
+      SQ.select { |sq| @colors[sq] != EMPTY }.each do |from|
+        yield(@squares[from], @colors[from], from)
+      end
+    end
+
+    def evaluate
+      score = 0
+      all_pieces { |piece, color, from| score += eval_for(piece, color, from) }
+      @mx == BLACK ? (score * -1) : score
+    end
+    
+    def eval_for(piece, color, from)
+      color == WHITE ? MATERIAL[piece] + POSITION[piece][SQ64[from]] :
+                     -(MATERIAL[piece] + POSITION[piece][-SQ64[from]])
+    end
+    
+    def render_board
+      8.times.map { |i| SQ[(i*8), 8].map { |sq| 
+        @squares[sq] == EMPTY ? '_' : UTF8[@colors[sq]][@squares[sq]] 
+      }.join(' ') }.join("\n")
+    end
   end
 end
