@@ -1,75 +1,53 @@
 require_relative 'alpha/constants'
 require_relative 'alpha/search'
-require 'byebug'
-require 'thread'
 
 module Alpha  
   class << self
-    
-    def from_fen(fen)
-      squares = Array.new(120) { -1 }
-      colors  = Array.new(120) { -1 }
-      mx = fen.split[1] == 'w' ? 0 : 1
+    def load_position(fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1')
+      s, c = Array.new(120) { -1 }, Array.new(120) { -1 }
       fen.split[0].split('/').map do |row|
         row.chars.map { |sq| ('1'..'8').cover?(sq) ? ['6'] * sq.to_i : sq }
       end.flatten.each_with_index do |sq, i|
-        squares[SQ[i]] = %w(p n b r q k 6).index(sq.downcase)
-        colors[SQ[i]] = sq == '6' ? EMPTY : sq == sq.downcase ? BLACK : WHITE
+        s[SQ[i]] = %w(p n b r q k 6).index(sq.downcase)
+        c[SQ[i]] = sq == '6' ? EMPTY : sq == sq.downcase ? BLACK : WHITE
       end
-      Search.new(squares, colors, mx)
+      Search.new(s, c, fen.split[1] == 'w' ? 0 : 1)
     end
     
-    def first_position
-      from_fen(INITIAL_FEN)
+    def ppsq(i) FILES[(i % 10) - 1] + RANKS[(i / 10) - 2] end
+    
+    def print_board(s, c)
+      8.times.map do |i| 
+        puts SQ[(i*8), 8].map { |sq| s[sq] == EMPTY ? '_' : UTF8[c[sq]][s[sq]] }.join(' ')
+      end
     end
     
-    def pp_nodes(n, c)
-      "#{n} nodes @ #{(n / c).round(2)}/sec"
-    end
-    
-    def pp_square(i)
-      FILES[(i % 10) - 1] + RANKS[(i / 10) - 2]
-    end
-    
-    def pp_root(r, m)
-      "#{PIECES[m.piece]} from #{pp_square(m.from)} to #{pp_square(m.to)}#{m.target == EMPTY ? 
-        '' : '('+PIECES[m.target]+')'} rating: #{r.score}"
-    end
-    
-    def pp_board(s, c)
-      8.times.map { |i| SQ[(i*8), 8].map { |sq| 
-        s[sq] == EMPTY ? '_' : UTF8[c[sq]][s[sq]] 
-      }.join(' ') }.join("\n")
-    end
-    
-    def pp_search(s)
-      [ pp_board(s.squares, s.colors),
-        pp_root(s.best, s.best.move),
-        pp_nodes(s.nodes, s.clock), 
-        ("_" * 25), "\n"
-      ].join("\n")
+    def print_data(r, m, n, c)
+      puts "#{PIECES[m.piece]} from #{ppsq(m.from)} to #{ppsq(m.to)}, rating: #{r.score}"
+      puts "#{n} nodes @ #{(n / c).round(2)}nps\n\n"
     end
     
     def autoplay(duration = 4.0)
-      s = first_position
-      turns = 0
-      loop do
-        turns += 1
+      s = load_position
+      100.times do |i|
         s.find_move(duration)
-        puts "\n#{turns}\n#{pp_search(s)}"
+        print_board(s.squares, s.colors)
+        print_data(s.root, s.root.move, s.nodes, s.clock)
         s = Search.new(s.squares, s.colors, s.mx)
       end
     end
   end
   
-  Move = Struct.new(:from, :to, :piece, :target)
+  Move = Struct.new(:from, :to, :piece, :target) do
+    def ==(other)
+      return false if !other
+      from == other.from && to == other.to && target == other.target
+    end
+  end
   
   class Root
     include Comparable
-    
-    attr_accessor :score, :pt, :seq
-    attr_reader   :move, :color
-    
+    attr_accessor :score, :pt, :seq, :move, :color
     def initialize(move, color)
       @move = move
       @color = color

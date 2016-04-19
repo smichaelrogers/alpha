@@ -1,7 +1,6 @@
 module Alpha
   class Search
-    
-    attr_reader :squares, :colors, :mx, :nodes, :clock, :best
+    attr_reader :squares, :colors, :mx, :nodes, :clock, :best, :root
     
     def initialize(squares, colors, mx)
       @root = Root.new(Move.new, mx)
@@ -9,22 +8,18 @@ module Alpha
       @colors  = colors
       @mx, @mn = mx, mx ^ 1
       @kings = SQ.select { |sq| @squares[sq] == K }.sort_by { |sq| @colors[sq] }
-      @moves = Array.new(MAXPLY) { [] }
-      @on = Array.new(MAXPLY)
-      @_ply, @ply, @nodes = 0, 0, 0
+      @moves, @on = Array.new(MAXPLY) { [] }, Array.new(MAXPLY)
+      @ply, @_ply, @nodes = 0, 0, 0
     end
     
     def find_move(duration)
-      roots = []
-      generate_moves
-      @moves[@ply].each { |m| roots << Root.new(m.dup, @mx) }
-      start_time = Time.now
-      timed_out = false
+      roots = generate_moves.map { |m| Root.new(m.dup, @mx) }
+      start_time, timed_out = Time.now, false
       2.upto(MAXPLY) do |i|
         @height = i
         roots.sort!.each do |r|
-          next unless make(r.move)
           @root = r
+          next unless make(@root.move)
           @root.score = -alphabeta(-INF, INF, i)
           unmake(@root.move)
           timed_out = Time.now > start_time + duration
@@ -33,38 +28,34 @@ module Alpha
         break if timed_out
       end
       @clock = Time.now - start_time
-      @best = roots.first
-      make(@best.move)
+      @root = roots.first
+      make(@root.move)
     end
     
     def alphabeta(alpha, beta, depth)
-      return evaluate if depth == 0
-      moved = false
       @nodes += 1
-      @_ply = @ply
-      generate_moves
-      @moves[@ply].each do |m|
+      return evaluate if depth == 0 || @ply >= MAXPLY - 1
+      @_ply, moved = @ply, false
+      generate_moves.each do |m|
         next unless make(m)
-        x = moved ? -alphabeta(-beta, -alpha, depth - 1) : 
-                    -alphabeta(-alpha-1, -alpha, depth - 1)
+        x = moved ? -alphabeta(-alpha-1, -alpha, depth - 1) :
+                    -alphabeta(-beta, -alpha, depth - 1)
         moved = true
         unmake(m)
         if x > alpha
           @root.pt[m.piece][m.to] += ((depth+1)*@height) if m.target == EMPTY
           return beta if x >= beta
-          alpha = x
           @ply.upto(@_ply) { |i| @root.seq[i] = @on[i].dup if @on[i] }
+          alpha = x
         end
       end
-      moved ? alpha : in_check? ? -INF : 0
+      alpha
     end
     
     def generate_moves
-      @moves[@ply].clear.tap do |a| 
-        each_move { |i, j, k, l| a << Move.new(i, j, k, l).freeze }
-      end.tap do |a|
-        a.sort_by! { |m| ((m == @root.seq[@ply] ? 100_000 : 0) +
-          m.target == EMPTY ? @root.pt[m.piece][m.to] : 10_000 + m.target - m.piece) } 
+      @moves[@ply].clear.tap { |a| each_move { |i, j, k, l| a << Move.new(i, j, k, l).freeze } }.sort_by! do |m|
+        m.target == EMPTY ? @root.seq[@ply] && @root.seq[@ply] == m ? 999_999 : @root.pt[m.piece][m.to] :
+                            100_000 + m.target - m.piece
       end
     end
     
@@ -98,6 +89,7 @@ module Alpha
       @squares[m.to], @colors[m.to] = m.piece, @mx
       @ply += 1
       @kings[@mx] == m.to if m.piece == K
+      @squares[m.to] == Q if m.piece == P && !(30..90).cover?(m.to)
       if in_check?
         swap! && unmake(m)
         return false
@@ -115,17 +107,16 @@ module Alpha
     def in_check?
       k = @kings[@mx]
       8.times do |i|
-        sq = k + STEP[i]
-        return true if @squares[sq] == N && @colors[sq] == @mn
+        return true if @squares[k + STEP[i]] == N && @colors[k + STEP[i]] == @mn
         sq = k + OCTL[i]
         sq += OCTL[i] while @colors[sq] == EMPTY
         next unless @colors[sq] == @mn
         case @squares[sq]
-        when Q then return true
-        when B then return true if i < 4
-        when R then return true if i > 3
-        when P then return true if k + DIR[@mx] - 1 == sq || k + DIR[@mx] + 1 == sq
-        when K then return true if sq - (k + OCTL[i]) == 0
+        when Q; return true
+        when B; return true if i < 4
+        when R; return true if i > 3
+        when P; return true if k + DIR[@mx] - 1 == sq || k + DIR[@mx] + 1 == sq
+        when K; return true if sq - (k + OCTL[i]) == 0
         end
       end
       false
@@ -137,11 +128,16 @@ module Alpha
     end
 
     def evaluate
-      x = 0
-      SQ.select { |sq| @colors[sq] != EMPTY }.each do |i|
-        x += ((VAL[@squares[i]] + POS[@squares[i]][SQ64[i * FLIP[@colors[i]]]]) * FLIP[@colors[i]])
+      score = 0
+      SQ.each do |i|
+        score += 
+            case @colors[i]
+            when WHITE; VAL[@squares[i]] + POS[@squares[i]][SQ64[i]]
+            when BLACK; -(VAL[@squares[i]] + POS[@squares[i]][SQ64[-i]])
+            else next end 
       end
-      @mx == WHITE ? x : -x
+      score * FLIP[@mx]
     end
   end
+  
 end
