@@ -1,49 +1,57 @@
 module Alpha
   class Search
-    attr_reader :squares, :colors, :mx, :nodes, :clock, :best, :root
+    attr_reader :squares, :colors, :mx, :nodes, :clock, :best, :root    
     
+    # Stores the passed in position at ply zero
     def initialize(squares, colors, mx)
       @root = Root.new(Move.new, mx)
       @squares = squares
       @colors  = colors
       @mx, @mn = mx, mx ^ 1
       @kings = SQ.select { |sq| @squares[sq] == K }.sort_by { |sq| @colors[sq] }
-      @moves, @on = Array.new(MAXPLY) { [] }, Array.new(MAXPLY)
+      @moves = Array.new(MAXPLY) { [] }
       @ply, @_ply, @nodes = 0, 0, 0
     end
     
+    # Iterates through the roots of the move tree, selects a move and advances to the position resulting from it
     def find_move(duration)
       roots = generate_moves.map { |m| Root.new(m.dup, @mx) }
-      start_time, timed_out = Time.now, false
-      2.upto(MAXPLY) do |i|
-        @height = i
-        roots.sort!.each do |r|
+      start_time = Time.now
+      timed_out = false
+      height = 3
+      while height < MAXPLY && !timed_out
+        height += 1
+        roots.each do |r|
           @root = r
           next unless make(@root.move)
-          @root.score = -alphabeta(-INF, INF, i)
+          @on = Array.new(MAXPLY)
+          @root.score = -alphabeta(-INF, INF, height)
           unmake(@root.move)
           timed_out = Time.now > start_time + duration
           break if timed_out
         end
-        break if timed_out
+        roots.sort!
       end
+      puts height
       @clock = Time.now - start_time
       @root = roots.first
       make(@root.move)
     end
     
+    # Follows an arrangement of moves until the depth reaches zero, returning an evaluation of the resulting node
     def alphabeta(alpha, beta, depth)
       @nodes += 1
       return evaluate if depth == 0 || @ply >= MAXPLY - 1
-      @_ply, moved = @ply, false
+      @_ply = @ply
       generate_moves.each do |m|
         next unless make(m)
-        x = moved ? -alphabeta(-alpha-1, -alpha, depth - 1) :
-                    -alphabeta(-beta, -alpha, depth - 1)
-        moved = true
+        if m.target == K
+          debugger
+        end
+        x = -alphabeta(-beta, -alpha, depth - 1)
         unmake(m)
         if x > alpha
-          @root.pt[m.piece][m.to] += ((depth+1)*@height) if m.target == EMPTY
+          @root.pt[m.piece][m.to] += depth if m.target == EMPTY
           return beta if x >= beta
           @ply.upto(@_ply) { |i| @root.seq[i] = @on[i].dup if @on[i] }
           alpha = x
@@ -52,44 +60,49 @@ module Alpha
       alpha
     end
     
-    def generate_moves
-      @moves[@ply].clear.tap { |a| each_move { |i, j, k, l| a << Move.new(i, j, k, l).freeze } }.sort_by! do |m|
-        m.target == EMPTY ? @root.seq[@ply] && @root.seq[@ply] == m ? 999_999 : @root.pt[m.piece][m.to] :
-                            100_000 + m.target - m.piece
-      end
-    end
-    
+    # Creates an enumerator for all pseudolegal movement vectors
     def each_move
       SQ.select { |sq| @colors[sq] == @mx }.each do |from|
-        piece = @squares[from]
-        if piece == P
+        if @squares[from] == P
           to = from + DIR[@mx]
-          yield(from, to + 1, P, @squares[to + 1]) if @colors[to + 1] == @mn
-          yield(from, to - 1, P, @squares[to - 1]) if @colors[to - 1] == @mn
+          [to + 1, to - 1].each { |n| yield(from, n, P, @squares[n]) if @colors[n] == @mn }
           next unless @colors[to] == EMPTY
           yield(from, to, P, EMPTY)
-          yield(from, to + DIR[@mx], P, EMPTY) if @squares[to + DIR[@mx]] == EMPTY && !(40..80).cover?(from)
-        else STEPS[piece].each do |step|
+          to += DIR[@mx]
+          yield(from, to, P, EMPTY) if @squares[to] == EMPTY && !INNER_SQ.cover?(from)
+        else STEPS[@squares[from]].each do |step|
             to = from + step
             while @colors[to] == EMPTY
-              yield(from, to, piece, EMPTY)
-              break unless SLIDING[piece]
+              yield(from, to, @squares[from], EMPTY)
+              break unless SLIDING[@squares[from]]
               to += step
             end
-            yield(from, to, piece, @squares[to]) if @colors[to] == @mn
+            yield(from, to, @squares[from], @squares[to]) if @colors[to] == @mn
             break
           end
         end
       end
     end
+    
+    # Creates and sorts Moves from the vectors found in each_move()
+    def generate_moves
+      @moves[@ply].clear.tap { |a| each_move { |i, j, k, l| a << Move.new(i, j, k, l).freeze } }.sort_by! do |m|
+        if m.target == EMPTY
+          @root.seq[@ply] && @root.seq[@ply] == m ? 800_000 : @root.pt[m.piece][m.to]
+        else
+          200_000 + m.target - m.piece
+        end
+      end
+    end
 
+    # Moves a piece.  Keeps track of king positions to speed up in_check?().  Handles pawn promotions
     def make(m)
       @on[@ply] = m
       @squares[m.from], @colors[m.from] = EMPTY, EMPTY
       @squares[m.to], @colors[m.to] = m.piece, @mx
-      @ply += 1
       @kings[@mx] == m.to if m.piece == K
       @squares[m.to] == Q if m.piece == P && !(30..90).cover?(m.to)
+      @ply += 1
       if in_check?
         swap! && unmake(m)
         return false
@@ -98,12 +111,14 @@ module Alpha
     end
     
     def unmake(m)
-      swap! && @ply -= 1
+      swap!
+      @ply -= 1
       @squares[m.from], @colors[m.from] = m.piece, @mx
       @squares[m.to], @colors[m.to] = m.target, m.target == EMPTY ? EMPTY : @mn
       @kings[@mx] = m.from if m.piece == K
     end    
     
+    # Follows every legal path of movement from the kings position outward.  Returns true once an attacker is found
     def in_check?
       k = @kings[@mx]
       8.times do |i|
@@ -112,32 +127,28 @@ module Alpha
         sq += OCTL[i] while @colors[sq] == EMPTY
         next unless @colors[sq] == @mn
         case @squares[sq]
-        when Q; return true
-        when B; return true if i < 4
-        when R; return true if i > 3
-        when P; return true if k + DIR[@mx] - 1 == sq || k + DIR[@mx] + 1 == sq
-        when K; return true if sq - (k + OCTL[i]) == 0
+        when Q then return true
+        when B then return true if i < 4
+        when R then return true if i > 3
+        when P then return true if k + DIR[@mx] - 1 == sq || k + DIR[@mx] + 1 == sq
+        when K then return true if sq - (k + OCTL[i]) == 0
         end
       end
       false
+    end
+
+    # Returns an assessment of the current node relative to the maximizing player. 
+    def evaluate
+      score = 0
+      SQ.select { |i| @colors[i] != EMPTY }.each do |i|
+        score += @colors[i] == WHITE ? VAL[@squares[i]] + POS[@squares[i]][SQ64[i]] :  -(VAL[@squares[i]] + POS[@squares[i]][SQ64[-i]])
+      end
+      score * FLIP[@mx]
     end
     
     def swap!
       @mx, @mn = @mn, @mx
       true
     end
-
-    def evaluate
-      score = 0
-      SQ.each do |i|
-        score += 
-            case @colors[i]
-            when WHITE; VAL[@squares[i]] + POS[@squares[i]][SQ64[i]]
-            when BLACK; -(VAL[@squares[i]] + POS[@squares[i]][SQ64[-i]])
-            else next end 
-      end
-      score * FLIP[@mx]
-    end
   end
-  
 end

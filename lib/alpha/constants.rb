@@ -13,6 +13,14 @@ module Alpha
   MAXPLY = 16
   INF    = 999_999_999
   
+  FLIP   = [1, -1].freeze
+  PIECES = %w(P N B R Q K).freeze
+  FILES  = %w(a b c d e f g h).freeze
+  RANKS  = %w(1 2 3 4 5 6 7 8).freeze
+  UTF8   = [%w(♙ ♘ ♗ ♖ ♕ ♔), %w(♟ ♞ ♝ ♜ ♛ ♚)].freeze
+  
+  INIT_FEN = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'.freeze
+  
   SQ = [
     21, 22, 23, 24, 25, 26, 27, 28,
     31, 32, 33, 34, 35, 36, 37, 38,
@@ -23,27 +31,22 @@ module Alpha
     81, 82, 83, 84, 85, 86, 87, 88,
     91, 92, 93, 94, 95, 96, 97, 98
   ].freeze
-  SQ64 = Array.new(120) { -1 }.tap { |a| 64.times { |i| a[SQ[i]] = i } }.freeze
   
-  FLIP     = [1, -1].freeze
-  PIECES = %w(P N B R Q K).freeze
-  FILES  = %w(a b c d e f g h).freeze
-  RANKS  = %w(8 7 6 5 4 3 2 1).freeze
-  UTF8   = [%w(♙ ♘ ♗ ♖ ♕ ♔), %w(♟ ♞ ♝ ♜ ♛ ♚)].freeze
+  PP = SQ.map { |i| FILES[(i % 10) - 1] + RANKS[9 - (i / 10)] } 
+  SQ64 = Array.new(120) { -1 }.tap { |a| 
+    64.times { |i| a[SQ[i]] = i } }.freeze
   
   class Search
-    
-    DIR      = [-10, 10].freeze
-    STEP     = [-21, -19, -12, -8, 8, 12, 19, 21].freeze
-    DIAG     = [11, -11, -9, 9].freeze
-    ORTH     = [1, 10, -1, -10].freeze
-    OCTL     = [-9, 9, -11, 11, -10, 10, -1, 1].freeze
-    SIDES    = [9, 11, -9, -11, 1, -1].freeze
-    STEPS    = [DIR, STEP, DIAG, ORTH, OCTL, OCTL, DIR].freeze
-    SLIDING  = [false, false, true, true, true, false, false].freeze
-    
+    DIR     = [-10, 10].freeze
+    STEP    = [-21, -19, -12, -8, 8, 12, 19, 21].freeze
+    DIAG    = [11, -11, -9, 9].freeze
+    ORTH    = [1, 10, -1, -10].freeze
+    OCTL    = [-9, 9, -11, 11, -10, 10, -1, 1].freeze
+    STEPS   = [DIR, STEP, DIAG, ORTH, OCTL, OCTL, DIR].freeze
+    SLIDING = [false, false, true, true, true, false, false].freeze
+    INNER_SQ = (40..80).freeze
     VAL =  [100, 320, 330, 540, 960, 0].freeze
-    POS = [[24, 24, 24, 24, 24, 24, 24, 24, 18, 20, 20, 22, 22, 20, 20, 18, 10, 12, 14, 16, 16, 14, 10, 8, -4, -1, 2, 4, 4, 2, -1, -4, -4, -1, 4, 8, 8, 4, -1, -4, -2, -1, 1, 0, 0, 1, -1, -2, 4, 6, 0, 1, 1, 0, 6, 4, 0, 0, 0, 0, 0, 0, 0, 0].freeze, 
+    POS = [[24, 24, 24, 24, 24, 24, 24, 24, 18, 20, 20, 22, 22, 20, 20, 18, 10, 12, 14, 16, 16, 14, 10, 8, -4, -1,  6,  4,  4,  6, -1,-4, -4, -1,  2,  8,  8,  2, -1,-4,  -2, -1,  1,  2,  2,  1, -1,-2, 4,  6,  0,  1,  1,  0,  6, 4,  0,  0,  0,  0,  0,  0,  0, 0].freeze, 
            [-24, -6, -4, -2, -2, -4, -6, -24, -4, -2, 0, 1, 1, 0, -2, -4, -1, 1, 4, 6, 6, 4, 1, -1, -1, 1, 4, 6, 6, 4, 1, -1, -2, 0, 2, 4, 4, 2, 0, -2, -4, -2, -1, 1, 1, -1, -2, -4, -8, -6, -4, -2, -2, -4, -6, -8, -12, -6, -6, -6, -6, -6, -6, -12].freeze, 
            [-1, -1, -1, -1, -1, -1, -1, -1, -1, 0, 0, 0, 0, 0, 0, -1, -1, 0, 1, 1, 1, 1, 0, -1, -1, 0, 1, 4, 4, 1, 0, -1, -1, 0, 2, 4, 4, 2, 0, -1, -1, 1, 2, 2, 2, 2, 1, -1, -1, 2, 1, 2, 2, 1, 2, -1, -1, -1, -4, -1, -1, -4, -1, -1].freeze, 
            [1, 1, 1, 1, 1, 1, 1, 1, 4, 4, 4, 4, 4, 4, 4, 4, -2, -1, 0, 0, 0, 0, -1, -2, -2, -1, 0, 0, 0, 0, -1, -2, -2, -1, 0, 0, 0, 0, -1, -2, -2, -1, 0, 0, 0, 0, -1, -2, -2, -1, 0, 0, 0, 0, -1, -2, 0, 0, 1, 1, 1, 1, 0, 0].freeze,
