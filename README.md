@@ -1,132 +1,99 @@
-# alpha
-Very small (~140 loc) chess engine, extracted/refactored from some other I made, auto promotes pawn to queen but doesn't manage castling/move repetition
+# Alpha
 
-at the moment it can just load FEN positions and play against itself:
+A very small chess engine written in Ruby
 
-```shell
+---
+
+## Features
+- ~150 lines of code
+- Alpha Beta search algorithm
+
+---
+
+## PlayAlpha
+I made a web app for playing against it:
+
+Play it: 
+[here](http://www.playalpha.xyz)
+
+View source: 
+[here](https://github.com/smichaelrogers/play-alpha)
+
+
+
+## Usage
+
+At the moment it just plays against itself for tuning purposes..
+
+To try it out just clone this repo, and do something like this:
+
+``` shell
 $ irb
 2.3.0 :001 > load 'lib/alpha.rb'
  => true 
-2.3.0 :002 > Alpha.autoplay
-♜ ♞ ♝ ♛ ♚ ♝ ♞ ♜
-♟ ♟ ♟ ♟ ♟ ♟ ♟ ♟
-_ _ _ _ _ _ _ _
-_ _ _ _ _ _ _ _
-_ _ _ _ ♙ _ _ _
-_ _ _ _ _ _ _ _
-♙ ♙ ♙ ♙ _ ♙ ♙ ♙
-♖ ♘ ♗ ♕ ♔ ♗ ♘ ♖
-P from e2 to e4, rating: 17
-231076 nodes @ 55093.69nps
+2.3.0 :002 > Alpha.autoplay(duration: 16, loops: 9999)
+  ♜ ♞ ♝ ♛ ♚ ♝ ♞ ♜ 
+  ♟ ♟ ♟ ♟ ♟ ♟ ♟ ♟ 
+  _ _ _ _ _ _ _ _ 
+  _ _ _ _ _ _ _ _ 
+  _ _ _ _ _ _ _ _ 
+  _ _ _ _ ♙ _ _ _ 
+  ♙ ♙ ♙ ♙ _ ♙ ♙ ♙ 
+  ♖ ♘ ♗ ♕ ♔ ♗ ♘ ♖ 
+  517079 nodes @ 24275.67nps
 
-♜ ♞ ♝ ♛ ♚ ♝ ♞ ♜
-♟ ♟ ♟ ♟ _ ♟ ♟ ♟
-_ _ _ _ _ _ _ _
-_ _ _ _ ♟ _ _ _
-_ _ _ _ ♙ _ _ _
-_ _ _ _ _ _ _ _
-♙ ♙ ♙ ♙ _ ♙ ♙ ♙
-♖ ♘ ♗ ♕ ♔ ♗ ♘ ♖
-P from e7 to e5, rating: 76
-239405 nodes @ 58416.64nps
+  ♜ ♞ ♝ ♛ ♚ ♝ ♞ ♜ 
+  ♟ ♟ ♟ ♟ _ ♟ ♟ ♟ 
+  _ _ _ _ ♟ _ _ _ 
+  _ _ _ _ _ _ _ _ 
+  _ _ _ _ _ _ _ _ 
+  _ _ _ _ ♙ _ _ _ 
+  ♙ ♙ ♙ ♙ _ ♙ ♙ ♙ 
+  ♖ ♘ ♗ ♕ ♔ ♗ ♘ ♖ 
+  1342475 nodes @ 21592.63nps
 
-♜ ♞ ♝ ♛ ♚ ♝ ♞ ♜
-♟ ♟ ♟ ♟ _ ♟ ♟ ♟
-_ _ _ _ _ _ _ _
-_ _ _ _ ♟ _ _ _
-_ _ _ _ ♙ _ _ _
-_ _ _ _ _ ♘ _ _
-♙ ♙ ♙ ♙ _ ♙ ♙ ♙
-♖ ♘ ♗ ♕ ♔ ♗ _ ♖
-N from g1 to f3, rating: 122
-244821 nodes @ 57097.61nps
+  ♜ ♞ ♝ ♛ ♚ ♝ ♞ ♜ 
+  ♟ ♟ ♟ ♟ _ ♟ ♟ ♟ 
+  _ _ _ _ ♟ _ _ _ 
+  _ _ _ _ _ _ _ _ 
+  _ _ _ _ _ _ _ _ 
+  _ _ ♘ _ ♙ _ _ _ 
+  ♙ ♙ ♙ ♙ _ ♙ ♙ ♙ 
+  ♖ _ ♗ ♕ ♔ ♗ ♘ ♖ 
+  2057103 nodes @ 20726.62nps
 
-♜ ♞ ♝ ♛ ♚ ♝ ♞ ♜
-♟ ♟ ♟ ♟ _ _ ♟ ♟
-_ _ _ _ _ _ _ _
-_ _ _ _ ♟ ♟ _ _
-_ _ _ _ ♙ _ _ _
-_ _ _ _ _ ♘ _ _
-♙ ♙ ♙ ♙ _ ♙ ♙ ♙
-♖ ♘ ♗ ♕ ♔ ♗ _ ♖
-P from f7 to f5, rating: 84
-230895 nodes @ 56409.8nps
+  ♜ _ ♝ ♛ ♚ ♝ ♞ ♜ 
+  ♟ ♟ ♟ ♟ _ ♟ ♟ ♟ 
+  _ _ ♞ _ ♟ _ _ _ 
+  _ _ _ _ _ _ _ _ 
+  _ _ _ _ _ _ _ _ 
+  _ _ ♘ _ ♙ _ _ _ 
+  ♙ ♙ ♙ ♙ _ ♙ ♙ ♙ 
+  ♖ _ ♗ ♕ ♔ ♗ ♘ ♖ 
+  2871139 nodes @ 21739.22nps
 
-♜ ♞ ♝ ♛ ♚ ♝ ♞ ♜
-♟ ♟ ♟ ♟ _ _ ♟ ♟
-_ _ _ _ _ _ _ _
-_ _ _ _ ♟ ♙ _ _
-_ _ _ _ _ _ _ _
-_ _ _ _ _ ♘ _ _
-♙ ♙ ♙ ♙ _ ♙ ♙ ♙
-♖ ♘ ♗ ♕ ♔ ♗ _ ♖
-P from e4 to f5, rating: 218
-243960 nodes @ 60201.91nps
+  ♜ _ ♝ ♛ ♚ ♝ ♞ ♜ 
+  ♟ ♟ ♟ ♟ _ ♟ ♟ ♟ 
+  _ _ ♞ _ ♟ _ _ _ 
+  _ _ _ _ _ _ _ _ 
+  _ _ _ _ _ _ _ _ 
+  _ _ ♘ _ ♙ ♘ _ _ 
+  ♙ ♙ ♙ ♙ _ ♙ ♙ ♙ 
+  ♖ _ ♗ ♕ ♔ ♗ _ ♖ 
+  370997 nodes @ 21266.57nps
 
-♜ ♞ ♝ ♛ ♚ ♝ ♞ ♜
-♟ ♟ ♟ ♟ _ _ ♟ ♟
-_ _ _ _ _ _ _ _
-_ _ _ _ _ ♙ _ _
-_ _ _ _ ♟ _ _ _
-_ _ _ _ _ ♘ _ _
-♙ ♙ ♙ ♙ _ ♙ ♙ ♙
-♖ ♘ ♗ ♕ ♔ ♗ _ ♖
-P from e5 to e4, rating: -179
-300158 nodes @ 61147.67nps
-
-♜ ♞ ♝ ♛ ♚ ♝ ♞ ♜
-♟ ♟ ♟ ♟ _ _ ♟ ♟
-_ _ _ _ _ _ _ _
-_ _ _ _ ♘ ♙ _ _
-_ _ _ _ ♟ _ _ _
-_ _ _ _ _ _ _ _
-♙ ♙ ♙ ♙ _ ♙ ♙ ♙
-♖ ♘ ♗ ♕ ♔ ♗ _ ♖
-N from f3 to e5, rating: 211
-256230 nodes @ 60511.24nps
-
-♜ ♞ ♝ ♛ ♚ ♝ ♞ ♜
-♟ ♟ ♟ _ _ _ ♟ ♟
-_ _ _ _ _ _ _ _
-_ _ _ ♟ ♘ ♙ _ _
-_ _ _ _ ♟ _ _ _
-_ _ _ _ _ _ _ _
-♙ ♙ ♙ ♙ _ ♙ ♙ ♙
-♖ ♘ ♗ ♕ ♔ ♗ _ ♖
-P from d7 to d5, rating: -11
-244360 nodes @ 60528.0nps
-
-♜ ♞ ♝ ♛ ♚ ♝ ♞ ♜
-♟ ♟ ♟ _ _ _ ♟ ♟
-_ _ _ _ _ ♙ _ _
-_ _ _ ♟ ♘ _ _ _
-_ _ _ _ ♟ _ _ _
-_ _ _ _ _ _ _ _
-♙ ♙ ♙ ♙ _ ♙ ♙ ♙
-♖ ♘ ♗ ♕ ♔ ♗ _ ♖
-P from f5 to f6, rating: 236
-256910 nodes @ 60589.94nps
-
-♜ ♞ ♝ ♛ ♚ ♝ ♞ ♜
-♟ ♟ ♟ _ _ _ _ ♟
-_ _ _ _ _ ♟ _ _
-_ _ _ ♟ ♘ _ _ _
-_ _ _ _ ♟ _ _ _
-_ _ _ _ _ _ _ _
-♙ ♙ ♙ ♙ _ ♙ ♙ ♙
-♖ ♘ ♗ ♕ ♔ ♗ _ ♖
-P from g7 to f6, rating: 309
-280854 nodes @ 60039.7nps
-
-♜ ♞ ♝ ♛ ♚ ♝ ♞ ♜
-♟ ♟ ♟ _ _ _ _ ♟
-_ _ _ _ _ ♟ _ _
-_ _ _ ♟ ♘ _ _ ♕
-_ _ _ _ ♟ _ _ _
-_ _ _ _ _ _ _ _
-♙ ♙ ♙ ♙ _ ♙ ♙ ♙
-♖ ♘ ♗ _ ♔ ♗ _ ♖
-Q from d1 to h5, rating: 999999999
-285313 nodes @ 60499.23nps
-
+  ♜ _ ♝ ♛ ♚ ♝ _ ♜ 
+  ♟ ♟ ♟ ♟ _ ♟ ♟ ♟ 
+  _ _ ♞ _ ♟ ♞ _ _ 
+  _ _ _ _ _ _ _ _ 
+  _ _ _ _ _ _ _ _ 
+  _ _ ♘ _ ♙ ♘ _ _ 
+  ♙ ♙ ♙ ♙ _ ♙ ♙ ♙ 
+  ♖ _ ♗ ♕ ♔ ♗ _ ♖ 
+  2712763 nodes @ 22102.45nps
 ```
+
+---
+
+## License
+MIT
