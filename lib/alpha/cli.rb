@@ -1,20 +1,10 @@
-require_relative 'alpha/ext'
-require_relative 'alpha/constants'
-require_relative 'alpha/moves'
-require_relative 'alpha/util'
-require_relative 'alpha/engine'
-require_relative 'alpha/cli'
-require 'byebug'
-require 'json'
-require 'ap'
-
 module Alpha
 
   def self.generate_search_data(fen = FEN_INITIAL)
     e = Engine.new
     return unless fen && e.load_position(fen)
     e.reset!
-
+    
     if e.ready
       e.search
       e.make(e.root.move)
