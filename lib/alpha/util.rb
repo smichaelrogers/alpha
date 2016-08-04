@@ -1,33 +1,32 @@
 module Alpha
-
   class Engine
 
-
+    #
     def load_position(fen = FEN_INITIAL)
       @fen = fen
-      parts = fen.split
-      board = parts.first.gsub(/[1-8]/) { |s| '_' * s.to_i }
+      parts = fen.split                                      # [board, color, castling, ep, 50moveclock fullmoveclock]
+      board = parts.first.gsub(/[1-8]/) { |s| '_' * s.to_i } # replace # cons. empty * '_'
 
-      if parts.length > 1 && fen =~ FEN_REGEXP && board.split('/').count { |s| s.length == 8 } == 8
-        @mx = COLORS.index(parts[1])
-        @turn = parts[5] && parts[5] =~ /\A[-+]?\d+\z/ ? parts[5].to_i + 1 : 1
-        board.delete!('/')
+      if parts.length > 1 && fen =~ FEN_REGEXP &&            # ensure 8 rows * 8 columns &&
+          board.split('/').count { |s| s.length == 8 } == 8  # all valid FEN chars
+        @mx = COLORS.index(parts[1])                         # w(0) b(1) : nil
+        @turn = parts[5] && parts[5] =~ /\A[-+]?\d+\z/ ?     # turn is a digit : 1
+          parts[5].to_i + 1 : 1
+        board.delete!('/')                                   # all rows valid, remove /
 
         @kings = [board.index('K'), board.index('k')]
         @colors = board.chars.map { |s| FEN_KEY[s][0] }
         @squares = board.chars.map { |s| FEN_KEY[s][1] }
       end
 
-      @mx && @kings.length == 2 && @colors.length == 64 && @squares.length == 64
+      @mx && @kings.length == 2 && @colors.length == 64 && @squares.length == 64 # ocd
     end
 
-
+    #
     def render_fen
       board = []
-
       8.times do |i|
         empty = 0
-
         8.times do |j|
           if @colors[(i*8)+j] == EMPTY
             empty += 1
@@ -45,34 +44,29 @@ module Alpha
       "#{board.join} #{COLORS[@mx]} - - 0 #{@turn}"
     end
 
-
+    # enumerator |from, piece, color|
     def each_piece
       64.times { |i| yield(i, @squares[i], @colors[i]) if @colors[i] != EMPTY }
     end
-
-
-    def board
-      (0..63).map { |i| PIECES[@colors[i] % 6][@squares[i]] }
-    end
-
-
+    
+    # 'white' (winner) / 'black' (winner) / 'ongoing' / 'draw' (no moves, no check)
     def result
       @roots.empty? ? (in_check?(@mx) ? COLORS[@mn] : 'draw') : 'ongoing'
     end
 
-
+    # redundant, checks that engine is initialized with reset!
+    # should be '(@roots || reset!) && result == 'ongoing''
     def ready
       @roots && @roots.any? && result == 'ongoing'
     end
 
-
+    #
     def update_history(m, depth)
       return unless m.target == EMPTY
-
       @history[@ply][m.piece][m.to] += depth + @height**2
     end
 
-
+    #
     def render_board
       (0..7).map { |i| "\033[90m#{RANKS[i]}\033[0m " +
         (0..7).map { |j| UNICODE[@colors[(i * 8) + j] % 6][@squares[(i * 8) + j]] }.
@@ -82,7 +76,7 @@ module Alpha
         } << "  \033[90m#{FILES.join(' ')}\033[0m"
     end
 
-
+    #
     def render
       lines = render_board
 
@@ -104,7 +98,7 @@ module Alpha
       lines.map { |l| " #{l}" }.join("\n")
     end
 
-
+    #
     def to_h
       {
         turn: @turn - 1,

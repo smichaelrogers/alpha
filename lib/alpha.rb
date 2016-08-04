@@ -9,6 +9,5 @@ require 'byebug'
 require 'json'
 require 'ap'
 
-
 module Alpha
 end

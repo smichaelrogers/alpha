@@ -17,6 +17,7 @@ module Alpha
   R2_7   =  (8..55).freeze
   R3_6   =  (16..47).freeze
   R1_8   =  (0..63).freeze
+
   FLIP   =  [1, -1].freeze
   DIR    =  [-8, 8].freeze
   STEP   =  [-21, -19, -12, -8, 8, 12, 19, 21].freeze
@@ -27,7 +28,6 @@ module Alpha
   SLIDES =  [false, false, true, true, true, false, false].freeze
   VAL    =  [100, 320, 325, 540, 960, 0, 0].freeze
   SWAP   =  [[1, -1].freeze, [-1, 1].freeze].freeze
-
 
   SQ64 = [
     21, 22, 23, 24, 25, 26, 27, 28,
@@ -54,7 +54,6 @@ module Alpha
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1,
     -1, -1, -1, -1, -1, -1, -1, -1, -1, -1
   ].freeze
-
 
   POS = [ [
         0,  0,  0,  0,  0,  0,  0,  0,
@@ -124,7 +123,6 @@ module Alpha
     0, 0, 0, 0, 0, 0, 0, 0
   ].freeze
 
-
   SQUARES = %w(
     a8 b8 c8 d8 e8 f8 g8 h8
     a7 b7 c7 d7 e7 f7 g7 h7
@@ -138,17 +136,13 @@ module Alpha
 
   RANKS  = %w(1 2 3 4 5 6 7 8).freeze
   FILES  = %w(a b c d e f g h).freeze
-
   COLORS = %w(w b).freeze
-
   PIECES = [
     %w(P N B R Q K _).freeze,
     %w(p n b r q k _).freeze
   ].freeze
-
   PIECE_NAMES = %w(pawn knight bishop rook queen king).freeze
   COLOR_NAMES = %w(white black).freeze
-
   UNICODE = [
     %w(♙ ♘ ♗ ♖ ♕ ♔ _).freeze,
     %w(♟ ♞ ♝ ♜ ♛ ♚ _).freeze
